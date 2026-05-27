@@ -1,11 +1,13 @@
-import streamlit as st
-import numpy as np
-import pandas as pd
-import joblib
+# app.py
 
-from sklearn.datasets import load_diabetes
+import streamlit as st
+import pandas as pd
+import numpy as np
+
+from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeRegressor
 from sklearn.metrics import (
     mean_squared_error,
     mean_absolute_error,
@@ -13,41 +15,89 @@ from sklearn.metrics import (
 )
 
 # =========================
-# Page Config
+# Page Configuration
 # =========================
 st.set_page_config(
-    page_title="Decision Tree Regression",
+    page_title="California Housing Price Prediction",
     layout="wide"
 )
 
 # =========================
-# CSS
+# Advanced CSS
 # =========================
 st.markdown("""
 <style>
 
+.main {
+    background-color: #f4f6f7;
+}
+
 h1 {
     text-align: center;
-    color: #7b241c;
-    font-size: 45px !important;
+    color: #154360;
+    font-size: 52px !important;
+    font-weight: bold;
+}
+
+h2, h3 {
+    color: #1b4f72;
 }
 
 .stButton > button {
     width: 100%;
-    height: 50px;
-    font-size: 20px !important;
+    height: 55px;
+    font-size: 22px !important;
+    border-radius: 12px;
+    background-color: #1f618d;
+    color: white;
+    border: none;
+}
+
+.stButton > button:hover {
+    background-color: #154360;
+    color: white;
+}
+
+div[data-baseweb="input"] input {
+    font-size: 18px !important;
+    border-radius: 10px;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 30px;
+    color: #117864;
+}
+
+[data-testid="stDataFrame"] {
+    font-size: 17px;
+}
+
+.css-1d391kg {
+    background-color: #d6eaf8;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================
-# Dataset
+# Load Dataset
 # =========================
-data = load_diabetes()
+data = fetch_california_housing()
 
 X = data.data
 y = data.target
+
+feature_names = data.feature_names
+
+# =========================
+# DataFrame
+# =========================
+df = pd.DataFrame(
+    X,
+    columns=feature_names
+)
+
+df["Target"] = y
 
 # =========================
 # Train Test Split
@@ -68,9 +118,14 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # =========================
-# Load Model
+# Model
 # =========================
-model = joblib.load("models/decision_tree_regressor.pkl")
+model = DecisionTreeRegressor(
+    max_depth=8,
+    random_state=42
+)
+
+model.fit(X_train_scaled, y_train)
 
 # =========================
 # Predictions
@@ -89,37 +144,43 @@ r2 = r2_score(y_test, y_pred)
 # =========================
 # Title
 # =========================
-st.title("Decision Tree Regression")
+st.title("California Housing Price Prediction")
+
+st.write("""
+This Decision Tree Regression app predicts California housing prices
+using the preloaded California Housing Dataset from Scikit-learn.
+""")
 
 # =========================
 # Sidebar Inputs
 # =========================
-st.sidebar.header("Input Features")
+st.sidebar.header("Enter Housing Features")
 
-features = []
+inputs = []
 
-for i in range(10):
+for feature in feature_names:
 
     value = st.sidebar.number_input(
-        f"Feature {i+1}",
-        value=0.05
+        feature,
+        value=float(df[feature].mean()),
+        format="%.2f"
     )
 
-    features.append(value)
+    inputs.append(value)
 
 # =========================
 # Prediction
 # =========================
-if st.sidebar.button("Predict"):
+if st.sidebar.button("Predict House Price"):
 
-    input_data = np.array([features])
+    input_data = np.array([inputs])
 
     input_scaled = scaler.transform(input_data)
 
     prediction = model.predict(input_scaled)
 
     st.success(
-        f"Predicted Value: {prediction[0]:.2f}"
+        f"Predicted House Price: ${prediction[0] * 100000:.2f}"
     )
 
 # =========================
@@ -129,29 +190,64 @@ st.subheader("Model Statistics")
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric(
-    "MSE",
-    f"{mse:.2f}"
-)
+with col1:
+    st.metric(
+        "MSE",
+        f"{mse:.2f}"
+    )
 
-col2.metric(
-    "MAE",
-    f"{mae:.2f}"
-)
+with col2:
+    st.metric(
+        "MAE",
+        f"{mae:.2f}"
+    )
 
-col3.metric(
-    "R2 Score",
-    f"{r2:.2f}"
-)
+with col3:
+    st.metric(
+        "R2 Score",
+        f"{r2:.2f}"
+    )
 
 # =========================
-# Prediction Table
+# Dataset Preview
+# =========================
+st.subheader("Dataset Preview")
+
+st.dataframe(df.head(20))
+
+# =========================
+# Prediction Results
 # =========================
 results = pd.DataFrame({
-    "Actual": y_test,
-    "Predicted": y_pred
+    "Actual Price": y_test,
+    "Predicted Price": y_pred
 })
 
 st.subheader("Prediction Results")
 
 st.dataframe(results.head(20))
+
+# =========================
+# Feature Importance
+# =========================
+importance_df = pd.DataFrame({
+    "Feature": feature_names,
+    "Importance": model.feature_importances_
+})
+
+importance_df = importance_df.sort_values(
+    by="Importance",
+    ascending=False
+)
+
+st.subheader("Feature Importance")
+
+st.dataframe(importance_df)
+
+# =========================
+# Footer
+# =========================
+st.markdown("""
+---
+### Developed with Streamlit & Scikit-learn
+""")
